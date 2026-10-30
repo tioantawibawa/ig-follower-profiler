@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.streamlit/secrets.toml
+# sesi login & data follower (privat)
+session-*
+*.session
+follower_profile_*.csv
+.env
