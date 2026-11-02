@@ -87,14 +87,9 @@ def _verify_session(L) -> str:
             return r.json()["user"]["username"]
         except Exception:  # noqa: BLE001
             pass
-    # cadangan: pengecekan bawaan Instaloader
-    who = L.test_login()
-    if who:
-        return who
-    hint = {401: "cookie ditolak/kedaluwarsa", 403: "diblokir (coba ganti jaringan, matikan VPN)",
-            429: "terlalu banyak permintaan, tunggu beberapa menit"}.get(r.status_code, "respons tak dikenal")
-    raise ValueError(f"Instagram membalas HTTP {r.status_code} ({hint}). Pastikan yang disalin adalah nilai "
-                     "cookie 'sessionid' dari akun yang sedang login, tanpa spasi.")
+    # cadangan: pengecekan bawaan Instaloader. Jika keduanya gagal, jangan menyerah di sini:
+    # kegagalan sungguhan akan muncul saat profil/follower diambil.
+    return L.test_login() or ""
 
 
 def instaloader_followers(username: str, max_n: int, login_user: str, password: str,
@@ -129,11 +124,16 @@ def instaloader_followers(username: str, max_n: int, login_user: str, password: 
     else:
         raise ValueError("Instagram mewajibkan login untuk membaca daftar follower.")
 
-    target = instaloader.Profile.from_username(L.context, username)
+    try:
+        target = instaloader.Profile.from_username(L.context, username)
+        target.followers  # paksa permintaan awal agar galat login terdeteksi di sini
+    except (instaloader.LoginRequiredException, instaloader.ConnectionException) as e:
+        raise ValueError(f"Instagram menolak permintaan ({e}). Cookie mungkin tidak lengkap/kedaluwarsa, "
+                         "atau jaringan diblokir sementara.") from e
     info = dict(username=target.username, full_name=target.full_name, followers=target.followers,
                 following=target.followees, posts=target.mediacount, biography=target.biography,
                 is_private=target.is_private, is_verified=target.is_verified)
-    if target.is_private and login_user.lower() != username.lower() and not target.followed_by_viewer:
+    if target.is_private and (login_user or "").lower() != username.lower() and not target.followed_by_viewer:
         raise PermissionError("Akun privat dan akun login Anda tidak mengikutinya.")
 
     rows = []
