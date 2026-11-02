@@ -73,9 +73,33 @@ def demo_followers(username: str, n: int = 500, seed: int | None = None) -> pd.D
 # ---------------------------------------------------------------------------
 # Instaloader (tidak resmi; berisiko diblokir Instagram)
 # ---------------------------------------------------------------------------
+def _verify_session(L) -> str:
+    """Cek cookie lewat endpoint web terbaru; kembalikan username akun yang login."""
+    sess = L.context._session
+    try:
+        r = sess.get("https://www.instagram.com/api/v1/accounts/current_user/?edit=true",
+                     headers={"X-IG-App-ID": "936619743392459", "X-Requested-With": "XMLHttpRequest",
+                              "Referer": "https://www.instagram.com/"})
+    except Exception as e:  # noqa: BLE001
+        raise ValueError(f"Tidak bisa menghubungi Instagram: {e}") from e
+    if r.status_code == 200:
+        try:
+            return r.json()["user"]["username"]
+        except Exception:  # noqa: BLE001
+            pass
+    # cadangan: pengecekan bawaan Instaloader
+    who = L.test_login()
+    if who:
+        return who
+    hint = {401: "cookie ditolak/kedaluwarsa", 403: "diblokir (coba ganti jaringan, matikan VPN)",
+            429: "terlalu banyak permintaan, tunggu beberapa menit"}.get(r.status_code, "respons tak dikenal")
+    raise ValueError(f"Instagram membalas HTTP {r.status_code} ({hint}). Pastikan yang disalin adalah nilai "
+                     "cookie 'sessionid' dari akun yang sedang login, tanpa spasi.")
+
+
 def instaloader_followers(username: str, max_n: int, login_user: str, password: str,
                           delay: float = 2.0, progress=None, twofa_code: str = "",
-                          sessionid: str = ""):
+                          sessionid: str = "", csrftoken: str = ""):
     """Ambil follower. Perlu login. Mengembalikan (target_info, DataFrame)."""
     import instaloader
 
@@ -84,11 +108,9 @@ def instaloader_followers(username: str, max_n: int, login_user: str, password: 
                                 compress_json=False, post_metadata_txt_pattern="")
     if sessionid.strip():
         # Login lewat browser biasa, lalu pakai cookie sessionid-nya (menghindari deteksi bot saat login)
-        L.load_session(login_user or "", {"sessionid": sessionid.strip(), "csrftoken": ""})
-        who = L.test_login()
-        if not who:
-            raise ValueError("Cookie sessionid tidak valid/kedaluwarsa. Login ulang di browser dan salin lagi.")
-        login_user = who
+        sid = sessionid.strip().strip('"\'')
+        L.load_session(login_user or "", {"sessionid": sid, "csrftoken": csrftoken.strip().strip('"\'')})
+        login_user = _verify_session(L)
     elif login_user:
         try:
             L.load_session_from_file(login_user)
