@@ -31,7 +31,7 @@ with st.sidebar:
     source = st.radio("Sumber data", ["Demo (data sintetis)", "Instaloader (tidak resmi)", "Upload CSV"])
 
     max_n, delay, newest_first = 300, 2.0, True
-    login_user = password = ""
+    login_user = password = twofa = ""
     csv_file = None
     if source.startswith("Demo"):
         max_n = st.slider("Jumlah follower sintetis", 100, 2000, 500, 100)
@@ -41,6 +41,9 @@ with st.sidebar:
                           help="Jeda lebih besar = lebih kecil risiko akun login diblokir.")
         login_user = st.text_input("Username login IG").strip()
         password = st.text_input("Password (tidak disimpan)", type="password")
+        twofa = st.text_input("Kode 2FA (jika akun memakai 2FA)", max_chars=8,
+                              help="Kode 6 digit dari aplikasi autentikator; isi sebelum klik Analisis "
+                                   "(kode berlaku ±30 detik). Sesi disimpan sehingga berikutnya tidak perlu lagi.")
         st.caption("Gunakan akun cadangan. Login 2FA: buat sesi dulu lewat `instaloader --login=USER`.")
     else:
         csv_file = st.file_uploader("CSV follower", type="csv")
@@ -69,7 +72,7 @@ if go:
         elif source.startswith("Instaloader"):
             bar = st.progress(0.0, "Menghubungkan ke Instagram…")
             target, raw = ds.instaloader_followers(username, max_n, login_user, password, delay,
-                                                   lambda p, t: bar.progress(p, t))
+                                                   lambda p, t: bar.progress(p, t), twofa)
             bar.empty()
         else:
             if csv_file is None:

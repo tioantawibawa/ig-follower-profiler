@@ -74,7 +74,7 @@ def demo_followers(username: str, n: int = 500, seed: int | None = None) -> pd.D
 # Instaloader (tidak resmi; berisiko diblokir Instagram)
 # ---------------------------------------------------------------------------
 def instaloader_followers(username: str, max_n: int, login_user: str, password: str,
-                          delay: float = 2.0, progress=None):
+                          delay: float = 2.0, progress=None, twofa_code: str = ""):
     """Ambil follower. Perlu login. Mengembalikan (target_info, DataFrame)."""
     import instaloader
 
@@ -87,7 +87,14 @@ def instaloader_followers(username: str, max_n: int, login_user: str, password: 
         except FileNotFoundError:
             if not password:
                 raise ValueError("Sesi tersimpan tidak ditemukan; isi password untuk login.")
-            L.login(login_user, password)
+            try:
+                L.login(login_user, password)
+            except instaloader.TwoFactorAuthRequiredException:
+                code = (twofa_code or "").strip().replace(" ", "")
+                if not code:
+                    raise ValueError("Akun memakai 2FA: isi 'Kode 2FA' dari aplikasi autentikator, "
+                                     "lalu klik Analisis lagi.")
+                L.two_factor_login(code)
             L.save_session_to_file()
     else:
         raise ValueError("Instagram mewajibkan login untuk membaca daftar follower.")
