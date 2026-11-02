@@ -74,14 +74,22 @@ def demo_followers(username: str, n: int = 500, seed: int | None = None) -> pd.D
 # Instaloader (tidak resmi; berisiko diblokir Instagram)
 # ---------------------------------------------------------------------------
 def instaloader_followers(username: str, max_n: int, login_user: str, password: str,
-                          delay: float = 2.0, progress=None, twofa_code: str = ""):
+                          delay: float = 2.0, progress=None, twofa_code: str = "",
+                          sessionid: str = ""):
     """Ambil follower. Perlu login. Mengembalikan (target_info, DataFrame)."""
     import instaloader
 
     L = instaloader.Instaloader(quiet=True, download_pictures=False, download_videos=False,
                                 download_video_thumbnails=False, save_metadata=False,
                                 compress_json=False, post_metadata_txt_pattern="")
-    if login_user:
+    if sessionid.strip():
+        # Login lewat browser biasa, lalu pakai cookie sessionid-nya (menghindari deteksi bot saat login)
+        L.load_session(login_user or "", {"sessionid": sessionid.strip(), "csrftoken": ""})
+        who = L.test_login()
+        if not who:
+            raise ValueError("Cookie sessionid tidak valid/kedaluwarsa. Login ulang di browser dan salin lagi.")
+        login_user = who
+    elif login_user:
         try:
             L.load_session_from_file(login_user)
         except FileNotFoundError:
